@@ -1,13 +1,17 @@
 from django.contrib.auth import authenticate, get_user_model
+from users.models import User
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-User = get_user_model()
+# User = get_user_model()
 
 class RegisterSerializer(serializers.ModelSerializer):
+    role = serializers.ChoiceField(choices=User.ROLE_CHOICES, default='student')
+
     class Meta:
         model = User
-        fields = ['username', 'email', 'password']
+        fields = ['username', 'email', 'password', 'role']
         extra_kwargs = {'password': {'write_only': True}}
 
     def validate(self, data):
@@ -19,15 +23,16 @@ class RegisterSerializer(serializers.ModelSerializer):
         return data
 
     def create(self, validated_data):
-        """Buat user baru dengan password yang dienkripsi"""
+        """Buat user baru dengan password yang dienkripsi dan role"""
         user = User(
             username=validated_data['username'],
             email=validated_data['email'],
+            role=validated_data['role']
         )
         user.set_password(validated_data['password']) 
         user.save()
         return user
-    
+
 class LoginSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)
@@ -49,9 +54,17 @@ class LoginSerializer(serializers.Serializer):
             'user': {
                 'id': user.id,
                 'username': user.username,
-                'email': user.email
+                'email': user.email,
+                'role': user.role  # Tambahkan role di respons
             }
         }
 
     def get_user(self, obj):
         return obj.get('user')
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        token['role'] = user.role 
+        return token
